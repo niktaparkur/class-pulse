@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title | default('Управление шаблоном') }}{% endblock %}
+
+{% block head_styles %}
+<style>
+    .form-section { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px dashed #eee; }
+    .form-section:last-child { border-bottom: none; }
+    .form-section h3 { margin-top: 0; margin-bottom: 15px; font-size: 1.2em; color: #555; }
+    .form-group { margin-bottom: 15px; }
+    
+    /* --- ДОБАВЛЕННЫЕ/РАСКОММЕНТИРОВАННЫЕ СТИЛИ ДЛЯ ПОЛЕЙ ВВОДА --- */
+    label { /* Стили для label, если они не глобальные */
+        display: block;
+        font-weight: 500; /* Стандартный вес для заголовков полей */
+        margin-bottom: 5px;
+        color: #495057; /* Цвет текста для label */
+    }
+
+    input[type="text"],
+    input[type="password"], /* Добавим на всякий случай, если появятся */
+    textarea,
+    select {
+        width: 100%; /* Занимают всю доступную ширину */
+        padding: 10px 12px; /* Внутренние отступы */
+        border: 1px solid #ced4da; /* Стандартная рамка Bootstrap-like */
+        border-radius: 4px; /* Скругление углов */
+        box-sizing: border-box; /* Чтобы padding и border не увеличивали общую ширину */
+        font-size: 1rem; /* Стандартный размер шрифта */
+        line-height: 1.5; /* Межстрочный интервал */
+        color: #495057; /* Цвет текста */
+        background-color: #fff; /* Фон поля */
+        background-clip: padding-box;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out; /* Плавные переходы для фокуса */
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    textarea:focus,
+    select:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #80bdff; /* Цвет рамки при фокусе (Bootstrap-like) */
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); /* Тень при фокусе (Bootstrap-like) */
+    }
+
+    textarea {
+        min-height: 80px; /* Минимальная высота для textarea */
+        resize: vertical; /* Разрешить изменять размер только по вертикали */
+    }
+    /* --- КОНЕЦ ДОБАВЛЕННЫХ/РАСКОММЕНТИРОВАННЫХ СТИЛЕЙ --- */
+
+    .button-small-action { padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-left: 10px; vertical-align: middle; }
+    .dynamic-list-item { display: flex; align-items: center; margin-bottom: 8px; padding: 8px; border: 1px solid #f0f0f0; border-radius: 4px; background-color: #f9f9f9; }
+    /* Убедимся, что поля внутри .dynamic-list-item тоже используют общие стили, если нужно */
+    .dynamic-list-item input[type="text"], 
+    .dynamic-list-item select { 
+        flex-grow: 1; 
+        margin-right: 10px; 
+        /* Стили padding, border и т.д. будут наследоваться от общих выше, если селекторы не конфликтуют */
+    }
+    .feedback-question-item { padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; margin-bottom: 15px; background-color: #fafafa; }
+    .feedback-question-item h4 { margin-top: 0; font-size: 1.1em; margin-bottom: 10px; }
+    .feedback-options-container { padding-left: 20px; margin-top: 10px; }
+    .text-danger { color: #dc3545; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="padding: 20px 30px;">
+    <h2>{{ page_title }}</h2>
+
+    <form method="POST" action="{{ form_action_url }}" id="templateForm">
+        
+        <div class="form-section">
+            <h3><i class="fas fa-info-circle"></i> Основная информация</h3>
+            <div class="form-group">
+                <label for="template_name">Название шаблона <span class="text-danger">*</span></label>
+                <input type="text" id="template_name" name="template_name" 
+                       value="{{ template.name if template else request.form.get('template_name', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="template_description">Описание (необязательно)</label>
+                <textarea id="template_description" name="template_description"
+                          rows="3">{{ template.description if template else request.form.get('template_description', '') }}</textarea>
+            </div>
+            <p><strong>Тип опроса:</strong> {{ 'Пульс Класса' if poll_type == 'pulse' else 'Обратная Связь' }}</p>
+        </div>
+
+        <div class="form-section" id="pulse_section" {% if poll_type != 'pulse' %}style="display:none;"{% endif %}>
+            <h3><i class="fas fa-smile"></i> Настройки "Пульс Класса"</h3>
+            <div class="form-group">
+                <label for="pulse_question">Вопрос для Пульса <span class="text-danger">*</span></label>
+                <input type="text" id="pulse_question" name="pulse_question" 
+                       value="{{ template_data_for_form.question if poll_type == 'pulse' and template_data_for_form and 'question' in template_data_for_form else request.form.get('pulse_question', DEFAULT_PULSE_QUESTION_JS) }}">
+            </div>
+            <div class="form-group">
+                <label>Варианты ответов (минимум 2) <span class="text-danger">*</span></label>
+                <div id="pulse_options_container">
+                    {% set pulse_opts = template_data_for_form.options if poll_type == 'pulse' and template_data_for_form and 'options' in template_data_for_form else request.form.getlist('pulse_options[]') if request.form.getlist('pulse_options[]') else DEFAULT_PULSE_OPTIONS_JS %}
+                    {% for option_text in pulse_opts %}
+                    <div class="dynamic-list-item">
+                        <input type="text" name="pulse_options[]" value="{{ option_text }}" placeholder="Текст варианта" required>
+                        <button type="button" class="button button-danger button-small-action remove-item-btn">Удалить</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" id="add_pulse_option_btn" class="button button-secondary button-small" style="margin-top:10px;">
+                    <i class="fas fa-plus"></i> Добавить вариант
+                </button>
+            </div>
+        </div>
+
+        <div class="form-section" id="feedback_section" {% if poll_type != 'feedback' %}style="display:none;"{% endif %}>
+            <h3><i class="fas fa-comments"></i> Вопросы "Обратной Связи" (минимум 1) <span class="text-danger">*</span></h3>
+            <div id="feedback_questions_container">
+                {% set fb_questions_list = template_data_for_form if poll_type == 'feedback' and template_data_for_form else request.form.getlist('fb_question_texts[]') if request.form.getlist('fb_question_texts[]') else DEFAULT_FEEDBACK_QUESTIONS_JS %}
+                
+                {% for question_data in fb_questions_list %}
+                    {% if question_data is mapping %} {# Убедимся, что это словарь #}
+                        {% set outer_question_index = loop.index0 %}
+                        <div class="feedback-question-item" data-question-index="{{ outer_question_index }}">
+                            <h4>Вопрос #{{ loop.index }} 
+                                <button type="button" class="button button-danger button-small-action remove-feedback-question-btn" style="float:right;">Удалить вопрос</button>
+                            </h4>
+                            <div class="form-group">
+                                <label>Текст вопроса:</label>
+                                <input type="text" name="fb_question_texts[]" value="{{ question_data.text if 'text' in question_data else '' }}" placeholder="Введите текст вопроса" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Тип вопроса:</label>
+                                <select name="fb_question_types[]" class="feedback-question-type-select">
+                                    <option value="text" {% if question_data.type == 'text' %}selected{% endif %}>Текстовый ответ</option>
+                                    <option value="scale" {% if question_data.type == 'scale' %}selected{% endif %}>Шкала</option>
+                                </select>
+                            </div>
+                            <div class="feedback-options-container" {% if question_data.type != 'scale' %}style="display:none;"{% endif %}>
+                                <label>Варианты для шкалы (если тип "Шкала", минимум 2):</label>
+                                {% if question_data.type == 'scale' %}
+                                    {% set options_to_render = question_data.options if 'options' in question_data and question_data.options else [] %}
+                                    {% for scale_opt_text in options_to_render %}
+                                    <div class="dynamic-list-item">
+                                        <input type="text" name="fb_q_options_{{ outer_question_index }}[]" value="{{ scale_opt_text }}" placeholder="Текст опции шкалы">
+                                        <button type="button" class="button button-danger button-small-action remove-item-btn">Удалить</button>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                                <button type="button" class="button button-secondary button-small add-feedback-scale-option-btn" style="margin-top:5px;">
+                                    <i class="fas fa-plus"></i> Добавить опцию шкалы
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %} {# end if question_data is mapping #}
+                {% endfor %}
+            </div>
+            <button type="button" id="add_feedback_question_btn" class="button button-info" style="margin-top:15px;">
+                <i class="fas fa-plus-square"></i> Добавить вопрос для Обратной Связи
+            </button>
+        </div>
+
+        <hr>
+        <div style="margin-top: 20px; text-align: right;">
+            <a href="{{ url_for('core.manage_poll_templates') }}" class="button button-secondary">Отмена</a>
+            <button type="submit" class="button button-primary" style="margin-left: 10px;">
+                <i class="fas fa-save"></i> Сохранить шаблон
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block body_scripts_custom %}
+<script>
+// --- Полный JavaScript код из предыдущего ответа ---
+document.addEventListener('DOMContentLoaded', function () {
+    const pulseOptionsContainer = document.getElementById('pulse_options_container');
+    const addPulseOptionBtn = document.getElementById('add_pulse_option_btn');
+
+    function createPulseOptionInput(value = '') { /* ... */ 
+        const div = document.createElement('div');
+        div.className = 'dynamic-list-item';
+        div.innerHTML = `
+            <input type="text" name="pulse_options[]" value="${value}" placeholder="Текст варианта" required>
+            <button type="button" class="button button-danger button-small-action remove-item-btn">Удалить</button>
+        `;
+        div.querySelector('.remove-item-btn').addEventListener('click', function () { this.closest('.dynamic-list-item').remove(); });
+        return div;
+    }
+    if (addPulseOptionBtn && pulseOptionsContainer) {
+        addPulseOptionBtn.addEventListener('click', function () { pulseOptionsContainer.appendChild(createPulseOptionInput()); });
+        pulseOptionsContainer.querySelectorAll('.remove-item-btn').forEach(btn => { btn.addEventListener('click', function () { this.closest('.dynamic-list-item').remove(); }); });
+        if (pulseOptionsContainer.children.length === 0 && document.getElementById('pulse_section').style.display !== 'none') {
+            const defaultPulseOpts = {{ DEFAULT_PULSE_OPTIONS_JS | tojson | safe }};
+            defaultPulseOpts.forEach(opt => pulseOptionsContainer.appendChild(createPulseOptionInput(opt)));
+        }
+    }
+
+    const feedbackQuestionsContainer = document.getElementById('feedback_questions_container');
+    const addFeedbackQuestionBtn = document.getElementById('add_feedback_question_btn');
+    let questionCounter = feedbackQuestionsContainer ? feedbackQuestionsContainer.querySelectorAll('.feedback-question-item').length : 0;
+
+    function createScaleOptionInput(questionIdx, value = '') { /* ... */ 
+        const div = document.createElement('div');
+        div.className = 'dynamic-list-item';
+        div.innerHTML = `
+            <input type="text" name="fb_q_options_${questionIdx}[]" value="${value}" placeholder="Текст опции шкалы">
+            <button type="button" class="button button-danger button-small-action remove-item-btn">Удалить</button>
+        `;
+        div.querySelector('.remove-item-btn').addEventListener('click', function () { this.closest('.dynamic-list-item').remove(); });
+        return div;
+    }
+    function createFeedbackQuestionElement(qData = {}) { /* ... */ 
+        const currentQuestionIndex = feedbackQuestionsContainer.querySelectorAll('.feedback-question-item').length; // Используем текущее кол-во для индекса нового
+        const div = document.createElement('div');
+        div.className = 'feedback-question-item';
+        div.dataset.questionIndex = currentQuestionIndex; 
+        let optionsHTML = '';
+        let isScale = qData.type === 'scale';
+        if (isScale) {
+            const optsToRender = qData.options && qData.options.length > 0 ? qData.options : ['1 (Совсем нет)', '5 (Полностью)'];
+            optsToRender.forEach(opt => {
+                optionsHTML += `
+                    <div class="dynamic-list-item">
+                        <input type="text" name="fb_q_options_${currentQuestionIndex}[]" value="${opt}" placeholder="Текст опции шкалы">
+                        <button type="button" class="button button-danger button-small-action remove-item-btn">Удалить</button>
+                    </div>`;
+            });
+        }
+        div.innerHTML = `
+            <h4>Вопрос <span class="question-number"></span> 
+                <button type="button" class="button button-danger button-small-action remove-feedback-question-btn" style="float:right;">Удалить вопрос</button>
+            </h4>
+            <div class="form-group">
+                <label>Текст вопроса:</label>
+                <input type="text" name="fb_question_texts[]" value="${qData.text || ''}" placeholder="Введите текст вопроса" required>
+            </div>
+            <div class="form-group">
+                <label>Тип вопроса:</label>
+                <select name="fb_question_types[]" class="feedback-question-type-select">
+                    <option value="text" ${!isScale ? 'selected' : ''}>Текстовый ответ</option>
+                    <option value="scale" ${isScale ? 'selected' : ''}>Шкала</option>
+                </select>
+            </div>
+            <div class="feedback-options-container" style="${isScale ? '' : 'display:none;'}">
+                <label>Варианты для шкалы (если тип "Шкала", минимум 2):</label>
+                ${optionsHTML}
+                <button type="button" class="button button-secondary button-small add-feedback-scale-option-btn" style="margin-top:5px;"><i class="fas fa-plus"></i> Добавить опцию шкалы</button>
+            </div>`;
+        div.querySelector('.remove-feedback-question-btn').addEventListener('click', function () { this.closest('.feedback-question-item').remove(); updateQuestionNumbers(); });
+        const typeSelect = div.querySelector('.feedback-question-type-select');
+        const optionsDiv = div.querySelector('.feedback-options-container');
+        typeSelect.addEventListener('change', function () {
+            const showOptions = this.value === 'scale';
+            optionsDiv.style.display = showOptions ? 'block' : 'none';
+            if (showOptions && optionsDiv.querySelectorAll('.dynamic-list-item').length === 0) {
+                const qIndex = this.closest('.feedback-question-item').dataset.questionIndex;
+                optionsDiv.insertBefore(createScaleOptionInput(qIndex, '1 (Совсем нет)'), optionsDiv.querySelector('.add-feedback-scale-option-btn'));
+                optionsDiv.insertBefore(createScaleOptionInput(qIndex, '5 (Полностью)'), optionsDiv.querySelector('.add-feedback-scale-option-btn'));
+            }
+        });
+        optionsDiv.querySelector('.add-feedback-scale-option-btn').addEventListener('click', function() {
+            const qIndex = this.closest('.feedback-question-item').dataset.questionIndex;
+            this.parentElement.insertBefore(createScaleOptionInput(qIndex), this);
+        });
+        optionsDiv.querySelectorAll('.remove-item-btn').forEach(btn => { btn.addEventListener('click', function () { this.closest('.dynamic-list-item').remove(); }); });
+        return div;
+    }
+    function updateQuestionNumbers() {
+        feedbackQuestionsContainer.querySelectorAll('.feedback-question-item .question-number').forEach((span, idx) => {
+            span.textContent = `#${idx + 1}`;
+        });
+    }
+    if (addFeedbackQuestionBtn && feedbackQuestionsContainer) {
+        addFeedbackQuestionBtn.addEventListener('click', function () { 
+            feedbackQuestionsContainer.appendChild(createFeedbackQuestionElement({type: 'text'})); // По умолчанию текстовый
+            updateQuestionNumbers();
+        });
+        feedbackQuestionsContainer.querySelectorAll('.feedback-question-item').forEach((item, idx) => { // Для существующих при рендере
+            item.dataset.questionIndex = idx; // Устанавливаем data-атрибут
+            item.querySelector('.question-number').textContent = `#${idx + 1}`;
+            item.querySelector('.remove-feedback-question-btn').addEventListener('click', function () { this.closest('.feedback-question-item').remove(); updateQuestionNumbers(); });
+            const typeSelect = item.querySelector('.feedback-question-type-select');
+            const optionsDiv = item.querySelector('.feedback-options-container');
+            typeSelect.addEventListener('change', function () {
+                const showOptions = this.value === 'scale';
+                optionsDiv.style.display = showOptions ? 'block' : 'none';
+                if (showOptions && optionsDiv.querySelectorAll('.dynamic-list-item').length === 0) {
+                    const qIndex = this.closest('.feedback-question-item').dataset.questionIndex;
+                    optionsDiv.insertBefore(createScaleOptionInput(qIndex, '1 (Совсем нет)'), optionsDiv.querySelector('.add-feedback-scale-option-btn'));
+                    optionsDiv.insertBefore(createScaleOptionInput(qIndex, '5 (Полностью)'), optionsDiv.querySelector('.add-feedback-scale-option-btn'));
+                }
+            });
+            optionsDiv.querySelector('.add-feedback-scale-option-btn').addEventListener('click', function() {
+                const qIndex = this.closest('.feedback-question-item').dataset.questionIndex;
+                this.parentElement.insertBefore(createScaleOptionInput(qIndex), this);
+            });
+            optionsDiv.querySelectorAll('.remove-item-btn').forEach(btn => { btn.addEventListener('click', function () { this.closest('.dynamic-list-item').remove(); }); });
+        });
+        if (feedbackQuestionsContainer.children.length === 0 && document.getElementById('feedback_section').style.display !== 'none') {
+            const defaultFbQs = {{ DEFAULT_FEEDBACK_QUESTIONS_JS | tojson | safe }};
+            if (Array.isArray(defaultFbQs)) {
+                defaultFbQs.forEach(qData => feedbackQuestionsContainer.appendChild(createFeedbackQuestionElement(qData)));
+            }
+            updateQuestionNumbers();
+        } else {
+            updateQuestionNumbers(); // Обновляем нумерацию для уже отрендеренных вопросов
+        }
+    }
+});
+</script>
+{% endblock %}

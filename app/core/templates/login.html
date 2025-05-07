@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - Class Pulse{% endblock %}
+
+{% block container_class %}login-page-wrapper{% endblock %} {# Убираем стандартный .container, т.к. login имеет свою
+структуру #}
+
+{% block head_styles %}
+<style>
+    /* body из base.html уже имеет #f8f9fa, но здесь он переопределяется для центрирования */
+    /* Вместо изменения body, будем стилизовать обертку */
+    .login-page-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #f8f9fa;
+        /* Фон для всей страницы */
+        padding: 20px;
+        /* Отступы, чтобы контейнер не прилипал к краям на малых экранах */
+    }
+
+    .login-container {
+        width: 100%;
+        max-width: 400px;
+        padding: 30px 40px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-container h1 {
+        text-align: center;
+        font-size: 1.8em;
+        margin-top: 0;
+        /* Убираем верхний отступ, если он есть от .container */
+        margin-bottom: 25px;
+        color: #333;
+    }
+
+    .login-container h1 i {
+        margin-right: 10px;
+        color: #007bff;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 1em;
+        box-sizing: border-box;
+    }
+
+    .remember-me {
+        display: flex;
+        align-items: center;
+        font-size: 0.9em;
+    }
+
+    .remember-me input {
+        margin-right: 8px;
+    }
+
+    .login-button {
+        width: 100%;
+        padding: 12px;
+        font-size: 1.1em;
+        margin-top: 10px;
+    }
+
+    /* Стили для flash-сообщений теперь в base.html, но если нужны уникальные отступы, можно добавить */
+    /* .login-container .flash-messages { margin-bottom: 20px; } */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    {# Flash сообщения теперь отображаются из base.html, здесь их дублировать не нужно,
+    если только не требуется специфичное размещение внутри этого контейнера.
+    Пока уберем их отсюда, они будут над этим блоком. #}
+
+    <h1><i class="fas fa-sign-in-alt"></i> Вход в Class Pulse</h1>
+
+    <form method="post" action="{{ url_for('core.login_route') }}">
+        <div class="form-group">
+            <label for="username">Имя пользователя:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <div class="form-group remember-me">
+            <input type="checkbox" id="remember" name="remember">
+            <label for="remember">Запомнить меня</label>
+        </div>
+        <button type="submit" class="button button-primary login-button">Войти</button>
+    </form>
+</div>
+{% endblock %}

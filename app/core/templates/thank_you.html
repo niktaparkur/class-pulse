@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Спасибо!{% endblock %}
+
+{% block container_class %}message-page-wrapper{% endblock %} {# Общая обертка для страниц-сообщений #}
+
+{% block head_styles %}
+<style>
+    .message-page-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        text-align: center;
+        background-color: #f8f9fa;
+        padding: 20px;
+    }
+
+    .message-box {
+        background-color: #fff;
+        padding: 40px 50px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        /* max-width: 500px; можно добавить, если нужно */
+    }
+
+    .message-box h1 {
+        /* color: #28a745; будет переопределено ниже */
+        font-size: 2.2em;
+        /* Немного уменьшил для лучшего вида */
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+
+    .message-box h1.success {
+        color: #28a745;
+    }
+
+    /* Специфичный цвет для успеха */
+    .message-box h1 i {
+        margin-right: 15px;
+    }
+
+    .message-box p {
+        font-size: 1.2em;
+        color: #495057;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="message-box">
+    <h1 class="success"><i class="fas fa-check-circle"></i> Спасибо за ваш ответ!</h1>
+    <p>Ваш голос учтен.</p>
+    {# Можно добавить кнопку "Вернуться" или автоматический редирект через JS, если нужно #}
+</div>
+{% endblock %}

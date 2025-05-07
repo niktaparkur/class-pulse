@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}QR-код Опроса - {{ poll.id if poll else 'N/A' }}{% endblock %}
+
+{% block container_class %}qr-page-wrapper{% endblock %} {# Убираем стандартный .container, эта страница полноэкранная
+#}
+
+{% block head_styles %}
+<style>
+    /* html, body из base.html уже должны иметь 100% height, если это нужно для flex центрирования */
+    /* Если нет, то можно добавить сюда: */
+    /* html, body { height: 100%; margin: 0; } */
+
+    .qr-page-wrapper {
+        /* Заменили body на этот класс */
+        height: 100vh;
+        /* Занимаем всю высоту видимой области */
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa;
+        font-family: 'Roboto', sans-serif;
+        /* Уже есть в base.html */
+        text-align: center;
+        padding: 20px;
+        /* Отступы на случай очень маленьких экранов */
+        box-sizing: border-box;
+    }
+
+    .qr-container {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        display: inline-block;
+        /* или просто block, если wrapper flex */
+        margin-bottom: 30px;
+        max-width: 90vw;
+        /* Ограничение ширины для больших QR */
+    }
+
+    .qr-container img {
+        display: block;
+        /* max-width и max-height здесь могут быть избыточны, если .qr-container уже ограничивает */
+        width: auto;
+        /* Позволяет изображению масштабироваться */
+        height: auto;
+        /* Позволяет изображению масштабироваться */
+        max-width: 100%;
+        /* Чтобы не вылезало за родительский .qr-container */
+        max-height: 65vh;
+        /* Ограничение высоты, чтобы текст и кнопка помещались */
+        border: 5px solid #fff;
+        /* Можно оставить или убрать, если не нужно */
+    }
+
+    .poll-id-display {
+        font-size: 1.2em;
+        color: #6c757d;
+        margin-top: 15px;
+    }
+
+    .poll-url-display {
+        font-size: 1em;
+        color: #343a40;
+        margin-top: 10px;
+        word-break: break-all;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{# Flash-сообщения из base.html будут отображены над этим контентом #}
+<div class="qr-container">
+    {% if poll and qr_url %} {# Используем qr_url, переданный из view, для большей надежности #}
+    <img src="{{ qr_url }}" alt="QR Code for Poll {{ poll.id }}">
+    <p class="poll-id-display">ID Опроса: {{ poll.id }}</p>
+    {% if display_url %}
+    <p class="poll-url-display">{{ display_url }}</p>
+    {% endif %}
+    {% else %}
+    <p>Не удалось загрузить QR-код. Пожалуйста, вернитесь и попробуйте снова.</p>
+    {% if not poll %} <p><small>(Опрос не найден)</small></p> {% endif %}
+    {% if not qr_url %} <p><small>(URL QR-кода отсутствует)</small></p> {% endif %}
+    {% endif %}
+</div>
+<div class="back-button-container">
+    <a href="{{ url_for('core.teacher_dashboard') }}" class="button button-secondary">
+        <i class="fas fa-arrow-left"></i> Вернуться на панель
+    </a>
+</div>
+{% endblock %}

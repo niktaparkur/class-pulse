@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title | default('Ошибка') }}{% endblock %} {# Позволяем передавать заголовок #}
+
+{% block container_class %}message-page-wrapper{% endblock %} {# Используем ту же обертку #}
+
+{% block head_styles %}
+<style>
+    .message-page-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        text-align: center;
+        background-color: #f8f9fa;
+        padding: 20px;
+    }
+
+    .message-box {
+        background-color: #fff;
+        padding: 40px 50px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .message-box h1 {
+        font-size: 2em;
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+
+    .message-box h1.error {
+        color: #dc3545;
+    }
+
+    /* Специфичный цвет для ошибки */
+    .message-box h1 i {
+        margin-right: 15px;
+    }
+
+    .message-box p {
+        font-size: 1.1em;
+        color: #495057;
+    }
+
+    .error-details {
+        font-size: 0.9em;
+        color: #6c757d;
+        margin-top: 20px;
+    }
+
+    .back-link {
+        margin-top: 25px;
+        display: inline-block;
+    }
+
+    /* Стили для кнопки могут быть в style.css */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="message-box">
+    <h1 class="error"><i class="fas fa-times-circle"></i> {{ heading | default('Произошла ошибка') }}</h1>
+    <p>{{ message | default('К сожалению, что-то пошло не так.') }}</p>
+
+    {# Добавляем возможность передать детали ошибки, если они есть #}
+    {% if error_details %}
+    <div class="error-details">
+        <p><small>Детали: {{ error_details }}</small></p>
+    </div>
+    {% endif %}
+
+    {# Кнопка "Вернуться на главную" может быть разной в зависимости от контекста #}
+    {# Пока оставим как есть, но можно сделать ее более гибкой #}
+    {# Проверяем, есть ли current_user, т.к. ошибка может случиться и до логина #}
+    {% if current_user and current_user.is_authenticated %}
+    <a href="{{ url_for('core.teacher_dashboard') }}" class="button button-secondary back-link"><i
+            class="fas fa-home"></i> Вернуться на панель</a>
+    {% else %}
+    {# Если пользователь не аутентифицирован, возможно, ссылка на страницу входа или просто главную без авторизации #}
+    {# Пока просто оставим ссылку, которая может не сработать без current_user #}
+    {# Лучше передавать URL для возврата из view-функции, если это возможно #}
+    <a href="{{ url_for('core.login_route') if 'login_route' in get_flashed_messages() else url_for('core.teacher_dashboard') }}"
+        class="button button-secondary back-link"><i class="fas fa-home"></i> На главную</a>
+    {% endif %}
+</div>
+{% endblock %}

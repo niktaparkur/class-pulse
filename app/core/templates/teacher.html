@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Панель Учителя - Class Pulse{% endblock %}
+
+{% block head_styles %}
+    {# Стили для .template-description, если они не вынесены в общий style.css #}
+    {# Стили для модального окна уже есть в style.css, здесь не нужны #}
+    <style>
+        .template-description { 
+            font-size: 0.85em; 
+            color: #007bff; /* Можно изменить или убрать, если уже есть в style.css */
+            margin-top: 5px; 
+            display: none; 
+        }
+        /* Если есть другие специфичные стили только для этой страницы, добавь их сюда */
+    </style>
+{% endblock %}
+
+{% block content %}
+{# Класс "container" уже есть от base.html, поэтому здесь он не нужен #}
+    <header class="main-header">
+        <h1><i class="fas fa-heart-pulse"></i> Class Pulse</h1>
+        <p>Панель управления опросами</p>
+    </header>
+
+    <div style="text-align: right; margin-bottom: 15px; font-size: 0.9em;">
+        Вы вошли как: <strong>{{ current_user.username }}</strong> |
+        <a href="{{ url_for('core.manage_poll_templates') }}" style="margin-right: 10px;">Управление шаблонами <i class="fas fa-cogs"></i></a> |
+        <a href="{{ url_for('core.logout_route') }}">Выйти <i class="fas fa-sign-out-alt"></i></a>
+    </div>
+    
+    {# Flash-сообщения теперь отображаются из base.html, здесь их не дублируем #}
+
+    <section class="section start-poll-section">
+        <h2><i class="fas fa-rocket"></i> Запустить новый опрос</h2>
+        <div class="poll-start-forms-container">
+            <div class="poll-start-form card">
+                <h3><i class="fas fa-smile"></i> Пульс Класса</h3>
+                <form action="{{ url_for('core.start_poll', poll_type='pulse') }}" method="post" id="start-pulse-form">
+                    <div class="form-group">
+                        <label for="pulse_template_id">Шаблон (необязательно):</label>
+                        <select name="template_id" id="pulse_template_id" class="template-select" data-poll-type="pulse">
+                            <option value="">-- Стандартный / Свой вопрос --</option>
+                            {% for template in pulse_templates %}
+                                <option value="{{ template.id }}" data-description="{{ template.description | default('', true) }}">
+                                    {{ template.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small id="pulse-template-description" class="template-description"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="pulse_question">Вопрос (если не выбран шаблон):</label>
+                        <input type="text" id="pulse_question" name="custom_question" placeholder="{{ DEFAULT_PULSE_QUESTION }}" disabled>
+                    </div>
+                     <div class="form-group">
+                         <label>Варианты ответов:</label>
+                         <span class="options-preview" id="pulse-options-preview">{{ DEFAULT_PULSE_OPTIONS|join(' / ') }}</span>
+                     </div>
+                    <button type="submit" class="button button-primary"><i class="fas fa-play"></i> Запустить Пульс</button>
+                </form>
+            </div>
+
+            <div class="poll-start-form card">
+                 <h3><i class="fas fa-comments"></i> Обратная Связь</h3>
+                <form action="{{ url_for('core.start_poll', poll_type='feedback') }}" method="post" id="start-feedback-form">
+                     <div class="form-group">
+                        <label for="feedback_template_id">Шаблон (необязательно):</label>
+                        <select name="template_id" id="feedback_template_id" class="template-select" data-poll-type="feedback">
+                            <option value="">-- Стандартный / Свой вопрос --</option>
+                            {% for template in feedback_templates %}
+                                <option value="{{ template.id }}" data-description="{{ template.description | default('', true) }}">
+                                    {{ template.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                         <small id="feedback-template-description" class="template-description"></small>
+                    </div>
+
+                    <div class="form-group">
+                         <label for="custom_feedback_question">Один свой вопрос (если не выбран шаблон):</label>
+                         <textarea id="custom_feedback_question" name="custom_feedback_question" rows="3" placeholder="Оставьте пустым для стандартного/шаблона..." disabled></textarea>
+                         <small>Если ввести вопрос, он заменит стандартные/шаблон.</small>
+                    </div>
+                    <button type="submit" class="button button-primary"><i class="fas fa-play"></i> Запустить ОС</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="section active-polls-section">
+        <h2><i class="fas fa-stream"></i> Активные опросы</h2>
+        <div class="poll-list">
+            {% if active_polls_list %}
+                <ul>
+                {% for poll_item in active_polls_list %}
+                    <li class="card poll-card active-poll-card">
+                        <div class="poll-card-header">
+                            <span class="poll-type-badge {{ poll_item.poll_type }}">
+                                <i class="fas {{ 'fa-smile' if poll_item.poll_type == 'pulse' else 'fa-comments' }}"></i>
+                                {{ 'Пульс Класса' if poll_item.poll_type == 'pulse' else 'Обратная Связь' }}
+                            </span>
+                            <span class="poll-id">ID: {{ poll_item.id }}</span>
+                        </div>
+                        <div class="poll-card-body">
+                            <p class="poll-question">{{ poll_item.pulse_question if poll_item.poll_type == 'pulse' else poll_item.get_questions()[0].text if poll_item.get_questions() else 'Обратная связь' }}</p>
+                            <div class="poll-links">
+                                <p><strong>Ссылка:</strong> <a href="{{ poll_item.student_url }}" target="_blank" title="Открыть ссылку для учеников">{{ poll_item.student_url | replace('http://', '') | replace('https://', '') }}</a></p>
+                                {% if poll_item.qr_code_url %}
+                                    <img src="{{ poll_item.qr_code_url }}" alt="QR Code" class="qr-code" title="QR-код для учеников">
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="poll-card-footer">
+                             <span class="poll-creation-date">
+                                <i class="far fa-clock"></i> Создан: {{ poll_item.created_at.strftime('%d.%m.%y %H:%M') if poll_item.created_at else 'N/A' }}
+                            </span>
+                            <div class="poll-actions">
+                                {% if poll_item.qr_code_url %}
+                                <a href="{{ url_for('core.qr_code_display', session_id=poll_item.id) }}" class="button button-info button-small" title="Показать QR-код крупно" target="_blank">
+                                    <i class="fas fa-qrcode"></i> Показать QR
+                                </a>
+                                {% endif %}
+                                <a href="{{ url_for('core.view_results', session_id=poll_item.id) }}" class="button button-secondary button-small" title="Посмотреть результаты">
+                                    <i class="fas fa-chart-bar"></i> Результаты ({{ poll_item.response_count }})
+                                </a>
+                                <form action="{{ url_for('core.end_poll_route', session_id=poll_item.id) }}" method="post" style="display:inline-block;">
+                                    <button type="submit" class="button button-danger button-small" title="Завершить опрос">
+                                        <i class="fas fa-stop-circle"></i> Завершить
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-polls-message">Нет активных опросов.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <hr style="margin-top: 30px; border-width: 2px; border-color: #bbb;">
+    
+    <section class="section completed-polls-section"> {# Добавил класс для ясности #}
+        <h2><i class="fas fa-history"></i> История опросов</h2>
+        <div class="poll-list">
+            {% if completed_polls_list %}
+                <ul>
+                {% for poll_item in completed_polls_list %}
+                    <li class="card poll-card completed-poll-card">
+                         <div class="poll-card-header">
+                            <span class="poll-type-badge {{ poll_item.poll_type }}">
+                                <i class="fas {{ 'fa-smile' if poll_item.poll_type == 'pulse' else 'fa-comments' }}"></i>
+                                {{ 'Пульс Класса' if poll_item.poll_type == 'pulse' else 'Обратная Связь' }}
+                            </span>
+                            <span class="poll-id">ID: {{ poll_item.id }}</span>
+                        </div>
+                         <div class="poll-card-body">
+                            <p class="poll-question">{{ poll_item.pulse_question if poll_item.poll_type == 'pulse' else poll_item.get_questions()[0].text if poll_item.get_questions() else 'Обратная связь' }}</p>
+                        </div>
+                        <div class="poll-card-footer">
+                            <span class="poll-creation-date">
+                                <i class="far fa-calendar-check"></i> Завершен: {{ poll_item.created_at.strftime('%d.%m.%y %H:%M') if poll_item.created_at else 'N/A' }}
+                                | Ответов: {{ poll_item.response_count }}
+                            </span>
+                            <div class="poll-actions">
+                                <a href="{{ url_for('core.view_results', session_id=poll_item.id) }}" class="button button-secondary button-small" title="Посмотреть результаты">
+                                    <i class="fas fa-chart-bar"></i> Результаты
+                                </a>
+                                <form action="{{ url_for('core.delete_poll_route', session_id=poll_item.id) }}" method="post" style="display:inline-block;">
+                                    <button type="button" class="button button-danger button-small delete-poll-button" title="Удалить опрос">
+                                        <i class="fas fa-trash-alt"></i> Удалить
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-polls-message">История опросов пока пуста.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    {# Модальное окно для подтверждения удаления. Его HTML остается здесь, т.к. оно специфично для этой страницы. #}
+    <div id="deleteConfirmModal" class="modal">
+         <div class="modal-content card">
+            <span class="modal-close-button">×</span>
+            <h4><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Подтвердите удаление</h4>
+            <p>Вы уверены, что хотите удалить этот опрос и все его результаты?</p>
+            <p><strong>Это действие необратимо!</strong></p>
+            <div class="modal-actions">
+                 <form id="deleteConfirmForm" action="" method="post" style="display: inline-block;">
+                    <button type="submit" class="button button-danger">
+                        <i class="fas fa-trash-alt"></i> Да, удалить
+                    </button>
+                 </form>
+                 <button type="button" class="button button-secondary modal-cancel-button">
+                     <i class="fas fa-times"></i> Отмена
+                 </button>
+             </div>
+         </div>
+    </div>
+{% endblock %}
+
+{% block body_scripts_custom %}
+    <script>
+        // Весь JavaScript код, который был в teacher.html, остается здесь
+        document.addEventListener('DOMContentLoaded', function() {
+            const pulseTemplateSelect = document.getElementById('pulse_template_id');
+            const pulseQuestionInput = document.getElementById('pulse_question');
+            const pulseOptionsPreview = document.getElementById('pulse-options-preview');
+            const pulseDescription = document.getElementById('pulse-template-description');
+            const feedbackTemplateSelect = document.getElementById('feedback_template_id');
+            const feedbackQuestionInput = document.getElementById('custom_feedback_question');
+            const feedbackDescription = document.getElementById('feedback-template-description');
+
+            function updateInputState(selectElement, inputElement, descriptionElement, optionsPreviewElement = null) {
+                const selectedOption = selectElement.options[selectElement.selectedIndex];
+                const templateSelected = selectElement.value !== '';
+                if (inputElement) {
+                    inputElement.disabled = templateSelected;
+                    inputElement.placeholder = templateSelected ? 'Используется шаблон' : (selectElement.dataset.pollType === 'pulse' ? '{{ DEFAULT_PULSE_QUESTION }}' : 'Оставьте пустым для стандартного/шаблона...');
+                    if (templateSelected) inputElement.value = '';
+                 }
+                 if (descriptionElement) {
+                    descriptionElement.textContent = templateSelected ? selectedOption.dataset.description || '' : '';
+                    descriptionElement.style.display = templateSelected && selectedOption.dataset.description ? 'block' : 'none';
+                 }
+                 if (optionsPreviewElement && selectElement.dataset.pollType === 'pulse') {
+                     optionsPreviewElement.textContent = templateSelected ? 'Опции из шаблона (не показаны)' : {{ DEFAULT_PULSE_OPTIONS|tojson|safe }}.join(' / ');
+                 }
+            }
+
+            if (pulseTemplateSelect && pulseQuestionInput && pulseOptionsPreview && pulseDescription) {
+                // Инициализация при загрузке, если нужно
+                if (pulseTemplateSelect.value === '') { // Только если не выбран шаблон
+                    pulseOptionsPreview.textContent = {{ DEFAULT_PULSE_OPTIONS|tojson|safe }}.join(' / ');
+                } else {
+                     pulseOptionsPreview.textContent = 'Опции из шаблона (не показаны)';
+                }
+                updateInputState(pulseTemplateSelect, pulseQuestionInput, pulseDescription, pulseOptionsPreview); // Вызов для начальной установки
+                pulseTemplateSelect.addEventListener('change', function() { updateInputState(this, pulseQuestionInput, pulseDescription, pulseOptionsPreview); });
+            }
+            if (feedbackTemplateSelect && feedbackQuestionInput && feedbackDescription) {
+                updateInputState(feedbackTemplateSelect, feedbackQuestionInput, feedbackDescription); // Вызов для начальной установки
+                feedbackTemplateSelect.addEventListener('change', function() { updateInputState(this, feedbackQuestionInput, feedbackDescription); });
+            }
+
+            const modal = document.getElementById('deleteConfirmModal');
+            const confirmForm = document.getElementById('deleteConfirmForm');
+            const closeButton = modal?.querySelector('.modal-close-button');
+            const cancelButton = modal?.querySelector('.modal-cancel-button');
+            const deleteButtons = document.querySelectorAll('.delete-poll-button');
+
+            function openModal(actionUrl) {
+                if(modal && confirmForm) {
+                    confirmForm.action = actionUrl;
+                    modal.style.display = 'block';
+                }
+            }
+            function closeModal() {
+                if(modal) {
+                    modal.style.display = 'none';
+                }
+                if(confirmForm) {
+                    confirmForm.action = '';
+                }
+            }
+
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.preventDefault(); // Предотвращаем стандартное действие кнопки (если она type="submit" в какой-то форме)
+                    const form = this.closest('form'); // Находим родительскую форму кнопки "Удалить"
+                    if (form) {
+                        openModal(form.action); // Передаем URL из action этой формы в модальное окно
+                    }
+                });
+            });
+
+            if (closeButton) { closeButton.addEventListener('click', closeModal); }
+            if (cancelButton) { cancelButton.addEventListener('click', closeModal); }
+            window.addEventListener('click', function(event) {
+                if (event.target == modal) { // Закрытие модального окна по клику вне его
+                    closeModal();
+                }
+            });
+        });
+    </script>
+{% endblock %}

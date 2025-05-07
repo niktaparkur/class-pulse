@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты Опроса - {{ session_id }}{% endblock %}
+
+{# Для results.html стандартный .container из base.html должен подойти #}
+{# {% block container_class %}{% endblock %} # Оставляем container по умолчанию #}
+
+{% block head_styles %}
+<style>
+    /* body стили из base.html */
+    /* .container стили из base.html или style.css */
+
+    .results-container {
+        /* Если этот класс еще используется для чего-то кроме .card */
+        padding: 25px 30px;
+        /* border, background, box-shadow уже могут быть от .card */
+    }
+
+    .poll-info {
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .poll-info h2 {
+        margin-top: 0;
+        color: #333;
+        /* Можно переопределить, если отличается от h2 в style.css */
+    }
+
+    .question-block {
+        margin-bottom: 35px;
+        padding-bottom: 20px;
+        border-bottom: 1px dotted #ccc;
+    }
+
+    .question-block:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .question-block h3,
+    .question-block h4 {
+        color: #444;
+        /* Можно переопределить */
+        margin-bottom: 15px;
+        font-weight: 500;
+    }
+
+    .chart-container {
+        position: relative;
+        margin: 15px auto;
+        /* Добавил отступ сверху и снизу */
+        max-width: 100%;
+        /* Уже было */
+    }
+
+    .text-responses {
+        margin-top: 15px;
+    }
+
+    .text-responses ul {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .text-responses li {
+        margin-bottom: 12px;
+        border: 1px solid #eee;
+        padding: 10px 15px;
+        border-radius: 4px;
+        background-color: #f9f9f9;
+        word-wrap: break-word;
+        /* или overflow-wrap: break-word; */
+    }
+
+    .response-author {
+        display: block;
+        margin-top: 8px;
+        font-style: italic;
+        color: #555;
+        font-size: 0.9em;
+        text-align: right;
+    }
+
+    .total-responses {
+        font-weight: bold;
+    }
+
+    .action-buttons {
+        margin-top: 15px;
+        /* Увеличил отступ */
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .back-link {
+        /* Стили для этой ссылки могут быть уже в style.css как для .button или a */
+        display: inline-block;
+        margin-bottom: 15px;
+        /* color: #007bff; */
+        /* Уже должно быть в style.css для a */
+        /* text-decoration: none; */
+    }
+
+    /* .back-link:hover { text-decoration: underline; } */
+    .info-message {
+        font-size: 0.9em;
+        color: #6c757d;
+    }
+
+    .no-results {
+        color: #6c757d;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="results-container card"> {# Добавлен класс card #}
+    <a href="{{ url_for('core.teacher_dashboard') }}" class="back-link"><i class="fas fa-arrow-left"></i> Вернуться к
+        панели учителя</a>
+
+    <div class="poll-info">
+        <h2><i class="fas fa-chart-pie"></i> Результаты Опроса</h2>
+        <p><strong>ID Сессии:</strong> {{ session_id }}</p>
+        <p class="total-responses">Всего ответов: <span id="total-responses-count">0</span></p>
+        {# IP-адрес клиента здесь, возможно, не нужен, это была отладочная информация. Убираю. #}
+        {# <p style="font-size: 0.8em; color: #6c757d;" id="client-ip-display">IP-адрес...</p> #}
+        <p class="info-message" id="update-status-message"><em>Подключение к серверу...</em></p>
+        <div class="form-group" style="margin-top: 10px; font-size: 0.9em;">
+            <input type="checkbox" id="show_flagged_messages_toggle" style="vertical-align: middle;">
+            <label for="show_flagged_messages_toggle" style="font-weight: normal; margin-left: 5px;">
+                Показать все сообщения (включая потенциально неприемлемые)
+            </label>
+        </div>
+        <div class="action-buttons">
+            <a href="{{ url_for('core.export_results', session_id=session_id) }}"
+                download="results_{{ poll_data.poll_type }}_{{ session_id }}.csv" {# Имя файла из poll_data для большей
+                точности #} class="button button-info button-small" id="export-button" style="display: none;">
+                <i class="fas fa-file-csv"></i> Экспорт в CSV
+            </a>
+        </div>
+    </div>
+
+    {% set initial_poll_type = poll_data.poll_type %}
+
+    <div class="question-block" id="pulse-block" {% if initial_poll_type !='pulse' %}style="display: none;" {% endif %}>
+        <h3>
+            <i class="fas fa-question-circle"></i>
+            {# Отображаем вопрос из poll_data, если он есть, иначе стандартный текст #}
+            {{ poll_data.pulse_question if poll_data.poll_type == 'pulse' and poll_data.pulse_question else 'Вопрос
+            Пульса' }}
+        </h3>
+        <div class="chart-container"> <canvas id="pulseChart"></canvas> </div>
+        <p class="no-results" id="pulse-no-results" style="display: block;">Ожидание данных...</p>
+    </div>
+
+    <div id="feedback-block" {% if initial_poll_type !='feedback' %}style="display: none;" {% endif %}>
+        <h3><i class="fas fa-tasks"></i> Обратная связь</h3>
+        {# Динамическое создание блоков для вопросов ОС будет управляться JS на основе данных #}
+        {# Но если мы рендерим структуру на сервере, как сейчас, то оставляем цикл #}
+        {% if initial_poll_type == 'feedback' and poll_data.get_questions() %}
+        {% for question in poll_data.get_questions() %}
+        <div class="question-block" id="question-block-{{ question.id }}">
+            <h4>{{ question.text }}</h4>
+            {% set q_id = question.id %}
+            {% set q_type = question.type %}
+            {% if q_type == 'scale' %}
+            <div class="chart-container"> <canvas id="feedbackChart_{{ q_id }}"></canvas> </div>
+            <p class="no-results" id="feedback-chart-no-results-{{ q_id }}" style="display: block;">Ожидание данных...
+            </p>
+            {% elif q_type == 'text' %}
+            <div class="result-summary text-responses">
+                <ul id="text-responses-list-{{ q_id }}"></ul>
+                <p class="no-results" id="text-no-results-{{ q_id }}" style="display: block;">Ожидание данных...</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% elif initial_poll_type == 'feedback' %}
+        <p class="no-results">Для этого опроса обратной связи не определены вопросы.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts_vendor %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+{% endblock %}
+
+{% block body_scripts_custom %}
+<script>
+    // Весь JavaScript код, который был в results.html, остается здесь
+    let pulseChartInstance = null;
+    let feedbackChartInstances = {};
+    const SESSION_ID = '{{ session_id }}'; // session_id передается из Flask в шаблон
+    let _showAllMessages = false; // По умолчанию скрываем/цензурируем
+    let _currentTextResponsesData = {}; // Для хранения текущих данных текстовых ответов по q_id
+
+
+    // ... (все твои функции: generatePastelColors, tooltipLabelCallback, updateTextResponses, ...)
+    // ... (updateChartData, destroyChart, createChart, managePulseChart, manageFeedbackCharts, processReceivedData) ...
+    // ... (и обработчик document.addEventListener('DOMContentLoaded', ...)) ...
+    // Код JS не меняется, так как он уже был в <script> теге.
+    // Просто убедись, что он весь здесь.
+
+    function generatePastelColors(count) {
+        const colors = []; if (count <= 0) return colors; const hueStep = 360 / count;
+        for (let i = 0; i < count; i++) { const hue = (i * hueStep) % 360; colors.push(`hsl(${hue}, 70%, 75%)`); }
+        for (let i = colors.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[colors[i], colors[j]] = [colors[j], colors[i]]; }
+        return colors;
+    }
+    function tooltipLabelCallback(context) {
+        let label = context.dataset.label || ''; if (label) { label += ': '; }
+        const value = context.parsed?.y ?? context.parsed?.r ?? 0;
+        const total = context.chart.data.datasets[0].data.reduce((a, b) => (a || 0) + (b || 0), 0);
+        const percentage = total > 0 ? Math.round((value / total) * 100) : 0; label += `${value} (${percentage}%)`; return label;
+    }
+
+    function updateTextResponses(questionId, responses) {
+        const ul = document.getElementById(`text-responses-list-${questionId}`);
+        const noResponseMessage = document.getElementById(`text-no-results-${questionId}`);
+        if (!ul || !noResponseMessage) { return; }
+
+        // Логируем состояние перед обновлением
+        console.log(`[updateTextResponses] Q_ID: ${questionId}. ShowAll: ${_showAllMessages}. Received ${responses ? responses.length : 0} items.`);
+        if (responses && responses.length > 0) {
+            console.log(`[updateTextResponses] First response item for Q_ID ${questionId}:`, JSON.parse(JSON.stringify(responses[0]))); // Глубокое копирование для лога
+        }
+
+        _currentTextResponsesData[questionId] = responses; // Сохраняем/обновляем данные
+
+        ul.innerHTML = ''; // Очищаем
+        let hasVisibleResponses = false;
+
+        if (responses && responses.length > 0) {
+            responses.forEach((response, index) => {
+                let displayText = response.text || '';
+                let listItemClass = '';
+                let originalTextForLog = response.text || ''; // Для лога
+
+                if (response.is_flagged) {
+                    listItemClass = 'flagged-response';
+                    if (!_showAllMessages) {
+                        displayText = `<span class="hidden-profane-message">[Сообщение скрыто] <small class='text-muted'>Возможно содержит неприемлемую лексику.</small></span>`;
+                    } else {
+                        // Показываем оригинал с пометкой
+                        displayText = `${response.text || ''} <span class="badge badge-warning">flagged</span>`;
+                    }
+                }
+                // Логируем каждое сообщение
+                // console.log(`[updateTextResponses] Q_ID: ${questionId}, Item #${index}, Flagged: ${response.is_flagged}, ShowAll: ${_showAllMessages}, DisplayText: "${displayText.substring(0,30)}..."`);
+
+
+                const li = document.createElement('li');
+                if (listItemClass) { li.classList.add(listItemClass); }
+                li.innerHTML = `${displayText} <span class="response-author"> - ${response.name || 'Анонимно'} </span>`;
+                ul.appendChild(li);
+                hasVisibleResponses = true;
+            });
+        }
+
+        noResponseMessage.style.display = hasVisibleResponses ? 'none' : 'block';
+        ul.style.display = hasVisibleResponses ? 'block' : 'none'; // Показываем ul только если есть видимые ответы
+        console.log(`[updateTextResponses] Q_ID: ${questionId} FINISHED. Visible items: ${ul.children.length}.`);
+    }
+
+    function updateChartData(chartInstance, newLabels, newValues) {
+        if (!chartInstance) return;
+        chartInstance.data.labels = newLabels;
+        chartInstance.data.datasets.forEach((dataset) => {
+            dataset.data = newValues; dataset.backgroundColor = generatePastelColors(newLabels.length);
+            dataset.borderColor = dataset.backgroundColor.map(color => color.replace('75%)', '60%)')); dataset.borderWidth = 1;
+        });
+        chartInstance.update();
+    }
+
+    function destroyChart(chartInstance) {
+        if (chartInstance) { const canvasId = chartInstance.canvas.id; chartInstance.destroy(); console.log(`Chart destroyed: ${canvasId}`); return true; } return false;
+    }
+
+    function createChart(canvasId, type, data, options) {
+        const canvas = document.getElementById(canvasId); if (!canvas) { console.error(`Canvas element not found: ${canvasId}`); return null; }
+        const ctx = canvas.getContext('2d'); if (!ctx) { console.error(`Failed to get 2D context for canvas: ${canvasId}`); return null; }
+        const labels = data.labels || []; const values = data.values || []; const backgroundColors = generatePastelColors(labels.length); const borderColors = backgroundColors.map(color => color.replace('75%)', '60%)'));
+        const chartConfig = { type: type, data: { labels: labels, datasets: [{ label: 'Кол-во ответов', data: values, backgroundColor: backgroundColors, borderColor: borderColors, borderWidth: 1 }] }, options: options };
+        try { return new Chart(ctx, chartConfig); } catch (e) { console.error(`Error creating chart ${canvasId}:`, e); return null; }
+    }
+
+    function managePulseChart(pulseData) {
+        const canvasId = 'pulseChart'; const canvas = document.getElementById(canvasId); const noResultsMsg = document.getElementById('pulse-no-results'); if (!canvas || !noResultsMsg) { console.error("Pulse canvas or no-results msg not found."); return; }
+        const hasData = pulseData && pulseData.values && pulseData.values.some(v => v > 0); canvas.style.display = hasData ? 'block' : 'none'; noResultsMsg.style.display = hasData ? 'none' : 'block';
+        if (hasData) {
+            const chartOptions = { indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: tooltipLabelCallback } } }, responsive: true, maintainAspectRatio: true };
+            if (pulseChartInstance) { updateChartData(pulseChartInstance, pulseData.labels, pulseData.values); } else { pulseChartInstance = createChart(canvasId, 'bar', pulseData, chartOptions); }
+        } else { if (destroyChart(pulseChartInstance)) { pulseChartInstance = null; } }
+    }
+
+    function manageFeedbackCharts(chartsDataMap) {
+        const allFeedbackQidsOnPage = Array.from(document.querySelectorAll('[id^="question-block-"]')).map(div => div.id.replace('question-block-', '')).filter(id => document.getElementById(`feedbackChart_${id}`) || document.getElementById(`text-responses-list-${id}`));
+        const existingChartQids = Object.keys(feedbackChartInstances); const receivedChartQids = chartsDataMap ? Object.keys(chartsDataMap) : [];
+        allFeedbackQidsOnPage.forEach(qId => {
+            const chartData = chartsDataMap ? chartsDataMap[qId] : null; const canvas = document.getElementById(`feedbackChart_${qId}`); const noResultsChartMsg = document.getElementById(`feedback-chart-no-results-${qId}`);
+            if (canvas && noResultsChartMsg) {
+                const hasData = chartData && chartData.values && chartData.values.some(v => v > 0); canvas.style.display = hasData ? 'block' : 'none'; noResultsChartMsg.style.display = hasData ? 'none' : 'block';
+                if (hasData) {
+                    const chartOptions = { indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: tooltipLabelCallback } } }, responsive: true, maintainAspectRatio: true };
+                    if (feedbackChartInstances[qId]) { updateChartData(feedbackChartInstances[qId], chartData.labels, chartData.values); } else { feedbackChartInstances[qId] = createChart(canvas.id, 'bar', chartData, chartOptions); }
+                } else { if (destroyChart(feedbackChartInstances[qId])) { delete feedbackChartInstances[qId]; } }
+            }
+        });
+        existingChartQids.forEach(qId => { if (!receivedChartQids.includes(qId)) { if (destroyChart(feedbackChartInstances[qId])) { delete feedbackChartInstances[qId]; } } });
+    }
+
+    function processReceivedData(data) {
+        console.log("Processing received data (with profanity flag logic):", JSON.parse(JSON.stringify(data))); // Логируем копию данных
+
+        // --- ДОБАВЬ ЭТОТ ЛОГ ---
+        if (data.poll_type === 'feedback' && data.feedback_data && data.feedback_data.texts) {
+            console.log("[SERVER DATA] feedback_data.texts:", JSON.parse(JSON.stringify(data.feedback_data.texts)));
+        }
+        const totalResponsesElement = document.getElementById('total-responses-count');
+        if (totalResponsesElement) { totalResponsesElement.textContent = data.total_responses ?? 'N/A'; }
+
+        const pulseBlock = document.getElementById('pulse-block');
+        const feedbackBlock = document.getElementById('feedback-block');
+        if (pulseBlock) pulseBlock.style.display = (data.poll_type === 'pulse') ? 'block' : 'none';
+        if (feedbackBlock) feedbackBlock.style.display = (data.poll_type === 'feedback') ? 'block' : 'none';
+
+        if (data.poll_type === 'pulse') {
+            const pulseQuestionHeader = pulseBlock.querySelector('h3');
+            if (pulseQuestionHeader && data.pulse_data && data.pulse_data.question) {
+                pulseQuestionHeader.innerHTML = `<i class="fas fa-question-circle"></i> ${data.pulse_data.question}`;
+            }
+            managePulseChart(data.pulse_data);
+        } else if (data.poll_type === 'feedback') {
+            manageFeedbackCharts(data.feedback_data?.charts);
+            // Сохраняем все текстовые вопросы, которые есть на странице, чтобы обновить их все
+            const textQuestionDivsOnPage = Array.from(document.querySelectorAll('[id^="text-responses-list-"]'));
+
+            if (data.feedback_data?.questions && data.feedback_data?.texts) {
+                data.feedback_data.questions.forEach(question => {
+                    const qBlockHeader = document.querySelector(`#question-block-${question.id} h4`);
+                    if (qBlockHeader) qBlockHeader.textContent = question.text;
+
+                    if (question.type === 'text') {
+                        const qTextResponses = data.feedback_data.texts.filter(resp => resp.question_id === question.id) || [];
+                        // `updateTextResponses` теперь сама сохранит `qTextResponses` в `_currentTextResponsesData`
+                        // и отрисует с учетом `_showAllMessages`
+                        updateTextResponses(question.id, qTextResponses);
+                    }
+                });
+                // Очистка для текстовых вопросов, которых больше нет в данных (маловероятно, но для полноты)
+                textQuestionDivsOnPage.forEach(ulElement => {
+                    const qId = ulElement.id.replace('text-responses-list-', '');
+                    if (!data.feedback_data.questions.some(q => q.id === qId && q.type === 'text')) {
+                        updateTextResponses(qId, []); // Очищаем, если вопрос удален из данных
+                    }
+                });
+            } else if (data.feedback_data?.texts === null || data.feedback_data?.questions === null) {
+                // Если texts или questions пришли как null, очищаем все текстовые ответы на странице
+                textQuestionDivsOnPage.forEach(ulElement => {
+                    const qId = ulElement.id.replace('text-responses-list-', '');
+                    updateTextResponses(qId, []);
+                });
+            }
+        } else {
+            console.warn("Unknown poll type received for processing:", data.poll_type);
+        }
+
+        const updateStatusMsg = document.getElementById('update-status-message');
+        const exportButton = document.getElementById('export-button');
+        if (updateStatusMsg) {
+            if (data.is_active) { updateStatusMsg.textContent = 'Опрос активен. Данные обновляются в реальном времени.'; updateStatusMsg.style.color = '#28a745'; }
+            else { updateStatusMsg.textContent = 'Опрос завершен.'; updateStatusMsg.style.color = 'grey'; }
+        }
+        if (exportButton) {
+            exportButton.style.display = data.total_responses > 0 ? 'inline-block' : 'none';
+            // Обновляем имя файла для экспорта, если poll_type мог измениться (хотя он не должен для существующего опроса)
+            exportButton.download = `results_${data.poll_type}_${SESSION_ID}.csv`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("DOM Loaded. Initializing Socket.IO connection for results page.");
+        const statusMsg = document.getElementById('update-status-message');
+        const socket = io({ autoConnect: false }); // Не подключаемся автоматически
+
+        const toggleSwitch = document.getElementById('show_flagged_messages_toggle');
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener('change', function () {
+                _showAllMessages = this.checked;
+                console.log(`Show all messages toggled to: ${_showAllMessages}`);
+                // Перерисовываем все текстовые ответы, используя сохраненные данные
+                for (const questionId in _currentTextResponsesData) {
+                    if (Object.hasOwnProperty.call(_currentTextResponsesData, questionId)) {
+                        updateTextResponses(questionId, _currentTextResponsesData[questionId]);
+                    }
+                }
+            });
+        }
+
+        socket.on('connect', () => {
+            console.log('Socket.IO connected for results!', socket.id);
+            if (statusMsg) { statusMsg.textContent = 'Подключено. Ожидание данных...'; statusMsg.style.color = '#17a2b8'; }
+            socket.emit('join_room', { room: SESSION_ID });
+            console.log(`Emitted 'join_room' for room: ${SESSION_ID}`);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket.IO disconnected for results:', reason);
+            if (statusMsg) { statusMsg.textContent = 'Соединение потеряно. Попытка переподключения...'; statusMsg.style.color = 'orange'; }
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket.IO connection error for results:', error);
+            if (statusMsg) { statusMsg.textContent = 'Ошибка подключения к серверу.'; statusMsg.style.color = 'red'; }
+        });
+
+        socket.on('results_updated', (data) => {
+            console.log('Received "results_updated" event on results page.');
+            processReceivedData(data);
+        });
+
+        socket.on('poll_ended', (data) => {
+            console.log('Received "poll_ended" event for session on results page:', data?.session_id);
+            if (data?.session_id === SESSION_ID) {
+                if (statusMsg) { statusMsg.textContent = 'Опрос завершен.'; statusMsg.style.color = 'grey'; }
+                // Можно добавить логику для отключения автообновления или изменения интерфейса
+            }
+        });
+
+        socket.on('poll_error', (data) => {
+            console.error('Received "poll_error" on results page:', data?.message);
+            if (statusMsg) { statusMsg.textContent = `Ошибка: ${data?.message || 'Неизвестная ошибка'}`; statusMsg.style.color = 'red'; }
+        });
+
+        // Только теперь подключаемся
+        socket.connect();
+    });
+</script>
+{% endblock %}

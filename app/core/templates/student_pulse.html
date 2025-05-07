@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Пульс Класса - Ответ{% endblock %}
+
+{% block container_class %}student-pulse-page-wrapper{% endblock %} {# Убираем стандартный .container, т.к. страница
+имеет свою структуру центрирования #}
+
+{% block head_styles %}
+<style>
+    .student-pulse-page-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #f8f9fa;
+        /* Фон для всей страницы */
+        padding: 20px;
+    }
+
+    .student-form-container {
+        width: 100%;
+        /* Для адаптивности */
+        max-width: 600px;
+        margin: 0 auto;
+        /* Дополнительное центрирование, если wrapper не flex */
+        padding: 30px 40px;
+        /* background-color, border-radius, box-shadow уже есть от класса .card в style.css, если он применяется */
+    }
+
+    .poll-question-header {
+        text-align: center;
+        font-size: 1.5em;
+        font-weight: 500;
+        margin-top: 0;
+        margin-bottom: 30px;
+        color: #495057;
+    }
+
+    .options-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        /* Используем grid для лучшего расположения кнопок */
+        gap: 15px;
+        /* Промежуток между кнопками */
+    }
+
+    /* Стили для .option-button уже должны быть в общем style.css. Если нет - раскомментировать и настроить */
+
+    .option-button {
+        display: block;
+        width: 100%;
+        padding: 15px 20px;
+        font-size: 1.2em;
+        text-align: center;
+        background-color: #e9ecef;
+        color: #495057;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .option-button:hover {
+        background-color: #007bff;
+        color: #fff;
+        border-color: #0056b3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .identification-section {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+        font-size: 0.9em;
+        color: #6c757d;
+    }
+
+    .identification-section .form-group {
+        margin-bottom: 10px;
+        text-align: left;
+        /* Выравнивание для галочки и текста */
+    }
+
+    .identification-section label {
+        font-weight: normal;
+        margin-left: 5px;
+        vertical-align: middle;
+        /* Для лучшего выравнивания с чекбоксом */
+    }
+
+    .identification-section input[type="checkbox"] {
+        vertical-align: middle;
+    }
+
+    .identification-section input[type="text"] {
+        width: 100%;
+        padding: 8px 10px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .hidden-input-group {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="student-form-container card"> {# Добавлен класс card для общих стилей карточки из style.css #}
+    <h1 class="poll-question-header">{{ question }}</h1>
+
+    <form action="{{ url_for('core.submit_response', session_id=session_id) }}" method="post">
+        <ul class="options-list">
+            {% for option in options %}
+            <li>
+                {# Кнопки теперь часть формы, и вся форма отправляется #}
+                {# Если JS не нужен для отправки, то type="submit" на каждой кнопке - это нормально #}
+                <button type="submit" name="answer" value="{{ option }}" class="option-button">
+                    {{ option }}
+                </button>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="identification-section">
+            <div class="form-group">
+                <input type="checkbox" id="identify_me" name="identify_me" value="yes">
+                <label for="identify_me">Подписать ответ своим именем?</label>
+            </div>
+            <div class="form-group hidden-input-group" id="student-name-group">
+                <label for="student_name">Ваше имя:</label>
+                <input type="text" id="student_name" name="student_name" placeholder="Имя Фамилия">
+            </div>
+        </div>
+        {# Отдельная кнопка отправки не нужна, если каждая опция - это submit.
+        Если бы опции были radio button, то нужна была бы общая кнопка Submit.
+        Текущая реализация с кнопками-опциями нормальна для "Пульса".
+        #}
+    </form>
+</div>
+{% endblock %}
+
+{% block body_scripts_custom %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const identifyCheckbox = document.getElementById('identify_me');
+        const nameGroup = document.getElementById('student-name-group');
+        const nameInput = document.getElementById('student_name'); // Получаем инпут для имени
+
+        if (identifyCheckbox && nameGroup && nameInput) {
+            // Устанавливаем начальное состояние (скрыто по умолчанию через CSS)
+            // nameGroup.style.display = identifyCheckbox.checked ? 'block' : 'none'; 
+
+            identifyCheckbox.addEventListener('change', function () {
+                nameGroup.style.display = this.checked ? 'block' : 'none';
+                if (!this.checked) {
+                    nameInput.value = ''; // Очищаем поле имени
+                }
+                // Если имя обязательно при установленной галочке, можно добавить/убрать 'required'
+                // nameInput.required = this.checked; 
+            });
+        }
+    });
+</script>
+{% endblock %}
