@@ -16,7 +16,7 @@ if __name__ == "__main__":
     flask_debug_str = os.environ.get("FLASK_DEBUG", "False").lower()
     flask_debug = flask_debug_str in ("true", "1", "t", "yes")
 
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     host = os.environ.get("HOST", "0.0.0.0")
 
     app.logger.info(f"Preparing to run SocketIO server...")

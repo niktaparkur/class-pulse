@@ -15,7 +15,18 @@ DEFAULT_FEEDBACK_QUESTIONS = [
 ]
 
 QR_CODES_FOLDER_NAME = 'qrcodes'
+_utils_dir = os.path.dirname(os.path.abspath(__file__))
+RUSSIAN_PROFANITY_FILE = os.path.join(_utils_dir, 'static', 'profanity_list_ru.txt') 
 
+print(f"INFO: Attempting to load custom Russian profanity words from: {RUSSIAN_PROFANITY_FILE}")
+if os.path.exists(RUSSIAN_PROFANITY_FILE):
+    try:
+        profanity.load_censor_words_from_file(RUSSIAN_PROFANITY_FILE)
+        print(f"INFO [profanity_setup]: Successfully loaded RUSSIAN profanity words from file.") 
+    except Exception as e:
+        print(f"ERROR: Could not load Russian profanity words from {RUSSIAN_PROFANITY_FILE}: {e}")
+else:
+    print(f"WARNING: Russian profanity file not found at {RUSSIAN_PROFANITY_FILE}. Using default/English set if not cleared.")
 
 def check_profanity_library(text):
     """
