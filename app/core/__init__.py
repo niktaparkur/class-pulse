@@ -1,3 +1,4 @@
+# app\core\__init__.py
 from flask import Blueprint
 
 core_bp = Blueprint(

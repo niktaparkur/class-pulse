@@ -1,3 +1,4 @@
+#app.py раннее run.py
 import os
 from flask import url_for
 from app import create_app
@@ -45,4 +46,3 @@ if __name__ == "__main__":
             )
 
     socketio.run(app, host=host, port=port, debug=flask_debug, use_reloader=flask_debug)
-    

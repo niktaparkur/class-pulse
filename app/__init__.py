@@ -1,3 +1,4 @@
+# app\__init__.py
 import os
 import logging
 from logging.config import dictConfig

@@ -1,4 +1,4 @@
-# class_pulse/app/core/views.py
+# app/core/views.py
 import os
 import uuid
 import csv
