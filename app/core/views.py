@@ -29,7 +29,7 @@ from flask_socketio import emit, join_room, leave_room
 # werkzeug.security импортируется в models для User, здесь не обязателен, если не создаем юзера напрямую
 
 from . import core_bp
-from ..models import db, Poll, PollTemplate, User
+from ..models import db, Teacher, Poll, PollTemplate, SuperAdmin, School, Director, User
 from .. import socketio, login_manager
 from ..utils import (
     is_safe_url,
@@ -116,10 +116,11 @@ def teacher_dashboard():
         f"Accessing teacher_dashboard for user {current_user.username}"
     )
     try:
+        current_teacher = flask_login_current_user
         active_polls_list = (
             db.session.execute(
                 db.select(Poll)
-                .filter_by(is_active=True)
+                .filter_by(is_active=True, teacher_id=current_teacher.id)
                 .order_by(Poll.created_at.desc())
             )
             .scalars()
@@ -1297,69 +1298,60 @@ def handle_join_room(
 
 
 def setup_database_and_admin(app_instance):
-    """Инициализирует таблицы БД и создает/проверяет админа."""
     with app_instance.app_context():
-        app_instance.logger.info("Checking/Creating database tables...")
+        app_instance.logger.info(
+            "Attempting to create database tables for ALL BINDS..."
+        )
         try:
             db.create_all()
-            app_instance.logger.info("Database tables checked/created successfully.")
+            app_instance.logger.info(
+                "Database tables checked/created successfully for all binds."
+            )
         except Exception as e:
             app_instance.logger.critical(
                 f"CRITICAL ERROR: Failed to create/check database tables: {e}"
             )
+            import traceback
+
+            app_instance.logger.error(traceback.format_exc())
             raise
 
-        username = app_instance.config.get("DEFAULT_ADMIN_USER", "admin")
-        # Пароль берем из переменных окружения (через Config) или дефолтный
-        # Config уже должен был загрузить ADMIN_PASS из .env или использовать дефолт
-        env_admin_pass = os.environ.get(
-            "ADMIN_PASS"
-        )  # Проверяем напрямую из .env для сравнения
+        # --- Создание или проверка Суперадмина ---
+        sa_username = app_instance.config.get("DEFAULT_SUPERADMIN_USER")
+        sa_password = app_instance.config.get("DEFAULT_SUPERADMIN_PASS")
 
-        # Используем пароль, который оказался в конфигурации приложения
-        # Это будет либо из ADMIN_PASS в .env, либо DEFAULT_ADMIN_PASS из Config
-        # Если ADMIN_PASS не задан в .env, Config.SECRET_KEY возьмет дефолтное значение.
-        # Но для пароля админа лучше брать из os.environ.get('ADMIN_PASS') или из app.config,
-        # которое уже должно было обработать .env или дефолт.
-
-        # Берем пароль, который был установлен в Config (он уже должен был учесть .env)
-        # Если ADMIN_PASS был в .env, то он перекроет DEFAULT_ADMIN_PASS в Config.
-        # Но Config.init_app уже выводит предупреждение, если используется дефолтный пароль
-        # и ADMIN_PASS не задан.
-
-        # Мы можем положиться на то, что Config.init_app уже выдал предупреждение.
-        # Здесь просто создаем пользователя.
-        # Пароль админа будет взят из переменных окружения, если он там есть,
-        # иначе будет использован DEFAULT_ADMIN_PASS из config.py.
-        # Это уже должно быть обработано при загрузке конфигурации.
-
-        # Самый простой способ получить пароль, который будет использован:
-        # Взять его из .env, если есть, или дефолтный.
-        # flask_config.py уже делает это.
-        # Но здесь нам нужен сам пароль для new_user.set_password().
-
-        admin_password_to_set = os.environ.get("ADMIN_PASS")
-        if not admin_password_to_set:
-            admin_password_to_set = app_instance.config["DEFAULT_ADMIN_PASS"]
-
-        user = db.session.execute(
-            db.select(User).filter_by(username=username)
+        # Используем сессию SQLAlchemy для запросов
+        super_admin = db.session.execute(
+            db.select(SuperAdmin).filter_by(username=sa_username)
         ).scalar_one_or_none()
-        if not user:
+
+        if not super_admin:
             try:
-                new_user = User(username=username)
-                new_user.set_password(
-                    admin_password_to_set
-                )  # Используем определенный пароль
-                db.session.add(new_user)
+                app_instance.logger.info(
+                    f"SuperAdmin user '{sa_username}' not found. Creating..."
+                )
+                new_super_admin = SuperAdmin(username=sa_username)
+                new_super_admin.set_password(sa_password)
+                db.session.add(new_super_admin)
                 db.session.commit()
                 app_instance.logger.info(
-                    f"Admin user '{username}' created successfully."
+                    f"SuperAdmin user '{sa_username}' created successfully."
                 )
             except Exception as e:
                 db.session.rollback()
                 app_instance.logger.error(
-                    f"Failed to create admin user '{username}': {e}"
+                    f"Failed to create SuperAdmin user '{sa_username}': {e}"
                 )
         else:
-            app_instance.logger.info(f"Admin user '{username}' already exists.")
+            app_instance.logger.info(
+                f"SuperAdmin user '{sa_username}' already exists. Checking password (for dev/debug)..."
+            )
+            # ВНИМАНИЕ: Не проверяйте пароль так в проде, если он может меняться.
+            # Это просто для отладки, чтобы убедиться, что дефолтный пароль работает, если он не менялся.
+            if not super_admin.check_password(
+                sa_password
+            ) and sa_password == app_instance.config.get("DEFAULT_SUPERADMIN_PASS"):
+                app_instance.logger.warning(
+                    f"Password for existing SuperAdmin '{sa_username}' does NOT match DEFAULT_SUPERADMIN_PASS. "
+                    f"This might be ok if it was changed. Or .env password is not picked up."
+                )

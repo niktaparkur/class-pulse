@@ -10,6 +10,108 @@ from markupsafe import Markup
 db = SQLAlchemy()
 
 
+class SuperAdmin(db.Model):
+    __tablename__ = "super_admins"
+    __bind_key__ = "meta_db"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<SuperAdmin {self.username}>"
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
+
+
+class School(db.Model):
+    __tablename__ = "schools"
+    __bind_key__ = "meta_db"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    address = db.Column(db.String(300), nullable=True)
+    # director_id = db.Column(db.Integer, db.ForeignKey('directors.id'), nullable=True) # Директор может быть назначен позже
+    # Директор будет связан через Director.school_id, см. ниже.
+
+    def __repr__(self):
+        return f"<School {self.name} (ID: {self.id})>"
+
+
+class Director(UserMixin, db.Model):  # UserMixin, так как Директор будет логиниться
+    __tablename__ = "directors"
+    __bind_key__ = "meta_db"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    school_id = db.Column(
+        db.Integer, db.ForeignKey(f"{School.__tablename__}.id"), nullable=False
+    )  # Явная ссылка на таблицу School
+    # Если SQLAlchemy ругается на ForeignKey к таблице в том же бинде, но с __bind_key__, можно попробовать f'{School.__bind_key__}.{School.__tablename__}.id'
+    # Но обычно для одного бинда это не нужно. Просто 'schools.id'
+
+    school = db.relationship(
+        "School", backref=db.backref("director", uselist=False, lazy="joined")
+    )  # Связь со школой
+
+    def set_password(
+        self, password
+    ):  # Уже есть от UserMixin, но если переопределяем - ок
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):  # Уже есть от UserMixin
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<Director {self.username} of school '{self.school.name if self.school else 'N/A'}'>"
+
+
+# --- МОДИФИКАЦИЯ СУЩЕСТВУЮЩЕЙ МОДЕЛИ User -> Teacher ---
+# Найди свой класс User и замени его на это:
+class Teacher(UserMixin, db.Model):  # Бывший User
+    __tablename__ = "teachers"  # Новое имя таблицы, чтобы не конфликтовать, если вдруг User где-то остался
+    # __bind_key__ НЕ указываем, значит, будет жить в основной DATABASE_URL (classpulse_app_db)
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    # Связь со школой. school_id - это ID школы из таблицы 'schools' в 'meta_db'.
+    # Прямой ForeignKey через разные бинды может быть сложен для некоторых СУБД или конфигураций SQLAlchemy.
+    # Самый надежный способ - хранить ID и делать выборку школы программно.
+    # НО! Если PostgreSQL и SQLAlchemy настроены правильно, можно попробовать.
+    # Если же нет, то просто school_id = db.Column(db.Integer, nullable=False) и логика в коде.
+    # Для простоты пока оставим school_id как обычное поле. Связь реализуем логикой.
+    school_id = db.Column(db.Integer, nullable=False)
+    # Опционально: Если хочешь relationship, это будет сложнее с разными bind'ами.
+    # school = db.relationship("School", primaryjoin=foreign(school_id) == remote(School.id), viewonly=True) # Попытка, может не сработать гладко
+
+    def set_password(self, password):  # Уже есть от UserMixin
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):  # Уже есть от UserMixin
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<Teacher {self.username} (School ID: {self.school_id})>"
+
+
 class Poll(db.Model):
     __tablename__ = "polls"
 
@@ -24,7 +126,8 @@ class Poll(db.Model):
     response_count = db.Column(db.Integer, default=0, nullable=False)
     student_url = db.Column(db.String(255))
     qr_code_url = db.Column(db.String(100))
-    text_feedback_responses = db.Column(db.Text, default='[]')
+    text_feedback_responses = db.Column(db.Text, default="[]")
+    teacher_id = db.Column(db.Integer, db.ForeignKey(f'{Teacher.__tablename__}.id'), nullable=False)
 
     def __repr__(self):
         return f"<Poll {self.id} ({self.poll_type})>"
@@ -182,6 +285,7 @@ class PollTemplate(db.Model):
     poll_type = db.Column(db.String(10), nullable=False)
     description = db.Column(db.String(300))
     data_json = db.Column(db.Text, nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey(f'{Teacher.__tablename__}.id'), nullable=False)
 
     def __repr__(self):
         return f"<PollTemplate {self.name} ({self.poll_type})>"

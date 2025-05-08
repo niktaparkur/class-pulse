@@ -11,7 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import config as app_config
 
-from .models import db, User
+from .models import db, Teacher, Poll, PollTemplate, SuperAdmin, School, Director
 
 from .utils import nl2br_filter
 
@@ -43,16 +43,18 @@ dictConfig(
 def load_user(user_id):
     from flask import current_app
 
-    current_app.logger.debug(f"--- user_loader: Loading user with ID: {user_id} ---")
+    current_app.logger.debug(
+        f"--- teacher_user_loader: Loading teacher with ID: {user_id} ---"
+    )
     try:
-        user = db.session.get(User, int(user_id))
+        user = db.session.get(Teacher, int(user_id))
         if user:
             current_app.logger.debug(
-                f"--- user_loader: User {user_id} ({user.username}) found. ---"
+                f"--- teacher_user_loader: Teacher {user_id} ({user.username}) found. ---"
             )
         else:
             current_app.logger.warning(
-                f"--- user_loader: User {user_id} NOT FOUND in DB! ---"
+                f"--- teacher_user_loader: Teacher {user_id} NOT FOUND in DB! ---"
             )
         return user
     except ValueError:
@@ -123,6 +125,18 @@ def create_app(config_name=None):
     app.jinja_env.filters["nl2br"] = nl2br_filter
     app.logger.info("Jinja2 filter 'nl2br' registered.")
 
+    from .superadmin import superadmin_bp, sa_login_manager
+
+    sa_login_manager.init_app(app)
+    app.register_blueprint(superadmin_bp)
+    app.logger.info("Blueprint 'superadmin' and its LoginManager registered.")
+
+    from .director import director_bp, dir_login_manager  # Импортируем
+
+    dir_login_manager.init_app(app)  # Инициализируем dir_login_manager для app
+    app.register_blueprint(director_bp)
+    app.logger.info("Blueprint 'director' and its LoginManager registered.")
+
     from .core import core_bp as core_blueprint
 
     app.register_blueprint(core_blueprint)
@@ -141,7 +155,6 @@ def create_app(config_name=None):
             404,
         )
 
-
     @app.errorhandler(500)
     def internal_server_error(err):
         # current_app.logger.error(f"Internal server error: {err}", exc_info=True)
@@ -156,7 +169,4 @@ def create_app(config_name=None):
             500,
         )
 
-
     return app, socketio
-
-
