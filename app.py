@@ -45,3 +45,4 @@ if __name__ == "__main__":
             )
 
     socketio.run(app, host=host, port=port, debug=flask_debug, use_reloader=flask_debug)
+    
