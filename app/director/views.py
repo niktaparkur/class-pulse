@@ -10,7 +10,7 @@ from ..models import db, Director, Teacher, School  # Модели из meta_db 
 # from werkzeug.security import generate_password_hash # Если нужно создавать учителей с паролем напрямую
 
 
-@dir_login_manager.user_loader
+
 def load_director(user_id):
     # current_app.logger.debug(f"--- director_loader: Loading Director with ID: {user_id} ---")
     return db.session.get(Director, int(user_id))

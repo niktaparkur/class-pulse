@@ -22,6 +22,7 @@ from flask import (
     session,
     current_app,
 )
+from flask_login import current_user as flask_login_current_user
 from markupsafe import Markup
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_socketio import emit, join_room, leave_room
@@ -29,7 +30,7 @@ from flask_socketio import emit, join_room, leave_room
 # werkzeug.security импортируется в models для User, здесь не обязателен, если не создаем юзера напрямую
 
 from . import core_bp
-from ..models import db, Teacher, Poll, PollTemplate, SuperAdmin, School, Director, User
+from ..models import db, Teacher, Poll, PollTemplate, SuperAdmin, School, Director
 from .. import socketio, login_manager
 from ..utils import (
     is_safe_url,
@@ -61,9 +62,9 @@ def login_route():
         password = request.form.get("password")
         remember = bool(request.form.get("remember"))
         current_app.logger.info(f"Login attempt for user: {username}")
-
+        current_teacher = flask_login_current_user
         user = db.session.execute(
-            db.select(User).filter_by(username=username)
+            db.select(Teacher).filter_by(username=username)
         ).scalar_one_or_none()
 
         if user and user.check_password(password):
@@ -129,7 +130,7 @@ def teacher_dashboard():
         completed_polls_list = (
             db.session.execute(
                 db.select(Poll)
-                .filter_by(is_active=False)
+                .filter_by(is_active=False, teacher_id=current_teacher.id)
                 .order_by(Poll.created_at.desc())
             )
             .scalars()
@@ -1151,6 +1152,7 @@ def create_edit_poll_template(template_id, poll_type_arg):
                 template.data_json = json.dumps(data_to_save, ensure_ascii=False)
                 flash_msg = f"Шаблон '{name}' обновлен."
             else:
+                current_teacher = flask_login_current_user
                 if db.session.execute(
                     db.select(PollTemplate).filter_by(name=name)
                 ).scalar_one_or_none():
@@ -1319,7 +1321,7 @@ def setup_database_and_admin(app_instance):
         # --- Создание или проверка Суперадмина ---
         sa_username = app_instance.config.get("DEFAULT_SUPERADMIN_USER")
         sa_password = app_instance.config.get("DEFAULT_SUPERADMIN_PASS")
-
+        current_teacher = flask_login_current_user
         # Используем сессию SQLAlchemy для запросов
         super_admin = db.session.execute(
             db.select(SuperAdmin).filter_by(username=sa_username)

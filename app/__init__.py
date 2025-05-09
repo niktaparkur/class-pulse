@@ -106,6 +106,7 @@ def create_app(config_name=None):
     login_manager.login_message_category = app.config.get(
         "LOGIN_MESSAGE_CATEGORY", "warning"
     )
+    login_manager.session_cookie_name = "_teacher_user_id"
 
     async_mode = None
     try:
@@ -125,17 +126,15 @@ def create_app(config_name=None):
     app.jinja_env.filters["nl2br"] = nl2br_filter
     app.logger.info("Jinja2 filter 'nl2br' registered.")
 
-    from .superadmin import superadmin_bp, sa_login_manager
+    from .superadmin import superadmin_bp
 
-    sa_login_manager.init_app(app)
     app.register_blueprint(superadmin_bp)
-    app.logger.info("Blueprint 'superadmin' and its LoginManager registered.")
+    app.logger.info("Blueprint 'superadmin' registered.")
 
-    from .director import director_bp, dir_login_manager  # Импортируем
+    from .director import director_bp
 
-    dir_login_manager.init_app(app)  # Инициализируем dir_login_manager для app
     app.register_blueprint(director_bp)
-    app.logger.info("Blueprint 'director' and its LoginManager registered.")
+    app.logger.info("Blueprint 'director' registered.")
 
     from .core import core_bp as core_blueprint
 

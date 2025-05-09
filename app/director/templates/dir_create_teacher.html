@@ -1,0 +1,34 @@
+<!-- app/director/templates/dir_create_teacher.html -->
+{% extends "base.html" %}
+
+{% block title %}Добавить Учителя - {{ school_name }}{% endblock %}
+
+{% block content %}
+<header class="main-header" style="background-color: #3498db; margin-bottom: 20px;">
+    <h1><i class="fas fa-user-graduate"></i> Добавление Учителя</h1>
+    <p>В школу: <strong>{{ school_name }}</strong></p>
+</header>
+
+<div class="card" style="padding: 20px 30px; max-width: 600px; margin: auto;">
+    {# Flash сообщения из base.html #}
+    <form method="post" action="{{ url_for('director.create_teacher') }}">
+        <div class="form-group">
+            <label for="username">Имя пользователя (логин) для учителя:</label>
+            <input type="text" id="username" name="username" class="form-control" required
+                value="{{ request.form.username }}">
+        </div>
+        <div class="form-group">
+            <label for="password">Пароль для учителя:</label>
+            <input type="password" id="password" name="password" class="form-control" required>
+            <small>Учитель сможет сменить пароль позже (если реализуешь).</small>
+        </div>
+        <hr>
+        <div style="margin-top: 20px; text-align: right;">
+            <a href="{{ url_for('director.dashboard') }}" class="button button-secondary">Отмена</a>
+            <button type="submit" class="button button-primary" style="margin-left: 10px;">
+                <i class="fas fa-plus"></i> Создать учителя
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

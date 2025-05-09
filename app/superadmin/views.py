@@ -10,7 +10,7 @@ from ..models import db, SuperAdmin, School, Director  # Нужные модел
 from werkzeug.security import check_password_hash  # Если не используем методы модели
 
 
-@sa_login_manager.user_loader
+
 def load_superadmin(user_id):
     # current_app.logger.debug(f"--- superadmin_loader: Loading SA with ID: {user_id} ---")
     return db.session.get(SuperAdmin, int(user_id))
@@ -32,17 +32,12 @@ def login_route():
         ).scalar_one_or_none()
 
         if sa_user and sa_user.check_password(password):
-            login_user(
-                sa_user
-            )  # Эта функция использует тот LoginManager, который активен для текущего запроса (или глобальный)
-            # Убедись, что sa_login_manager корректно инициализирован для app
+            login_user(sa_user)
             flash("Вход Суперадмина выполнен успешно!", "success")
             return redirect(url_for("superadmin.dashboard"))
         else:
             flash("Неверное имя пользователя или пароль Суперадмина.", "danger")
-    return render_template(
-        "sa_login.html"
-    )  # Нужен шаблон app/superadmin/templates/sa_login.html
+    return render_template("sa_login.html")
 
 
 @superadmin_bp.route("/logout")
@@ -62,17 +57,19 @@ def logout_route():
 @superadmin_bp.route("/dashboard")  # /superadmin/dashboard
 @login_required
 def dashboard():
-    if not isinstance(flask_login_current_user, SuperAdmin):
-        flash("Доступ к панели Суперадмина запрещен.", "danger")
-        # Редирект на соответствующую страницу входа или главную, если основной login_manager конфликтует
-        return redirect(url_for("superadmin.login_route"))
-
-    schools_list = (
-        db.session.execute(db.select(School).order_by(School.name)).scalars().all()
+    current_app.logger.info(
+        f"Accessing SA dashboard. Current user: {type(flask_login_current_user)}, auth: {flask_login_current_user.is_authenticated if flask_login_current_user else 'None'}"
     )
-    return render_template(
-        "sa_dashboard.html", schools_list=schools_list
-    )  # Нужен шаблон
+    if not (
+        flask_login_current_user.is_authenticated
+        and isinstance(flask_login_current_user, SuperAdmin)
+    ):
+        current_app.logger.warning(
+            "SA Dashboard: Current user is not an authenticated SuperAdmin. Redirecting to SA login."
+        )
+        # Если current_user не SuperAdmin, то его надо выкинуть на логин именно Суперадмина
+        logout_user()  # На всякий случай, если там "чужая" сессия
+        return redirect(url_for("superadmin.login_route"))
 
 
 # Тут будут маршруты для создания школ, назначения директоров...
