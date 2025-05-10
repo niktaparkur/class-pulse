@@ -36,7 +36,7 @@ Class Pulse - это веб-приложение на Flask, предназна�
 
 1.  **Клонировать репозиторий (если он есть):**
     ```bash
-    git clone <url-репозитория>
+    git clone https://github.com/niktaparkur/class-pulse.git
     cd class_pulse_project_root
     ```
 
